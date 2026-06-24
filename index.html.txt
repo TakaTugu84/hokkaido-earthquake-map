@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>北海道 地震被害想定・判定士可視化システム</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+:root {
+  --sidebar-width: 380px;
+  --primary-bg: #f8f9fa;
+  --border-color: #dee2e6;
+  --accent-color: #007bff;
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+  overflow: hidden;
+}
+
+#container {
+  display: flex;
+  height: 100vh;
+}
+
+#sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--primary-bg);
+  border-right: 1px solid var(--border-color);
+  padding: 10px 15px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+  border-left: 4px solid var(--accent-color);
+  padding-left: 10px;
+}
+
+.setting-group {
+  border: 1px solid var(--border-color);
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.setting-group h3 {
+  margin-top: 0;
+  font-size: 0.95rem;
+  color: var(--accent-color);
+  border-bottom: 2px solid #eee;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+.mode-selector {
+  background: #e9ecef;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  text-align: center;
+  border: 1px solid #ced4da;
+}
+.mode-selector label {
+  display: inline-block;
+  margin: 0 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #333;
+}
+.mode-selector input[type="radio"] {
+  margin-right: 3px;
+  transform: scale(1.1);
+  cursor: pointer;
+}
+
+.control-group {
+  margin-bottom: 8px;
+}
+.control-group:last-child {
+  margin-bottom: 0;
+}
+
+label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 2px;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+select, input[type="number"] {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: white;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+
+.control-group p {
+  font-size: 0.7rem;
+  color: #666;
+  margin: 3px 0 0 0;
+  line-height: 1.2;
+}
+
+#map {
+  flex-grow: 1;
+  height: 100%;
+  background: #eee;
+}
+
+#overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+.modal {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.legend {
+  background: white;
+  padding: 10px;
+  line-height: 20px;
+  color: #333;
+  box-shadow: 0 0 15px rgba(0,0,0,0.2);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.legend i {
+  width: 16px;
+  height: 16px;
+  float: left;
+  margin-right: 8px;
+  opacity: 0.8;
+  border: 1px solid #999;
+}
+
+/* --- ここからスマホ用・ハンバーガーメニューのCSS --- */
+#hamburger-btn {
+  display: none; /* パソコンでは非表示 */
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  z-index: 2000;
+  padding: 10px 15px;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+/* 画面幅が768px以下（スマホ・タブレット縦向き）の場合のレイアウト */
+@media (max-width: 768px) {
+  #hamburger-btn {
+    display: block; /* スマホでボタンを表示 */
+  }
+
+  #sidebar {
+    position: absolute;
+    top: 0;
+    left: -100%; /* 初期状態は画面の左外に隠す */
+    height: 100vh;
+    width: 85%; /* スマホでのサイドバーの幅 */
+    max-width: 320px;
+    transition: left 0.3s ease; /* スライドアニメーション */
+    box-shadow: 2px 0 15px rgba(0,0,0,0.5);
+  }
+
+  /* JavaScriptで .active クラスがついた時に画面内に引き出す */
+  #sidebar.active {
+    left: 0;
+  }
+
+  /* 地図のズームボタンが設定ボタンと重ならないように下にずらす */
+  .leaflet-top.leaflet-left {
+    top: 60px;
+  }
+}
+/* --- ここまで --- */
+</style>
+
+<script src="hokkaido.js"></script>
+<script src="bureau.js"></script>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="modal">
+    <h3>システム初期化中...</h3>
+    <p style="font-size: 0.9rem; color: #666;">データを自動で読み込んでいます。少々お待ちください。</p>
+  </div>
+</div>
+
+<div id="container">
+  <button id="hamburger-btn">☰ 設定を開く</button>
+  <aside id="sidebar">
+    <h2>表示設定</h2>
+
+    <div class="mode-selector">
+      <input type="radio" name="display-mode" id="mode-damage" value="damage" checked>
+      <label for="mode-damage">被害棟数 を表示</label>
+      <br>
+      <input type="radio" name="display-mode" id="mode-hanteishi" value="hanteishi">
+      <label for="mode-hanteishi">判定士増減数 を表示</label>
+    </div>
+
+    <div class="setting-group">
+      <h3>市町村・振興局 選択</h3>
+      <div class="control-group">
+        <label for="city-select">市町村リスト</label>
+        <select id="city-select">
+          <option value="">-- 選択してください --</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>【参考】最大となる想定地震モデル</label>
+        <div id="max-damage-model-display" style="padding: 8px; background: #fff; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem; color: #333; line-height: 1.4;">
+          市町村を選択してください
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label for="bureau-select">振興局リスト</label>
+        <select id="bureau-select">
+          <option value="">-- 選択してください --</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>【参考】最大となる想定地震モデル</label>
+        <div id="max-damage-model-bureau-display" style="padding: 8px; background: #fff; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem; color: #333; line-height: 1.4;">
+          振興局を選択してください
+        </div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <h3>被害棟数 設定</h3>
+      <div class="control-group">
+        <label for="eq-model">想定地震モデル</label>
+        <select id="eq-model"></select>
+      </div>
+
+      <div class="control-group">
+        <label for="season">季節</label>
+        <select id="season">
+          <option value="冬" selected>冬</option>
+          <option value="夏">夏</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="hazard">ハザード種別 (複合計算可)</label>
+        <select id="hazard">
+          <option value="揺れ">揺れ</option>
+          <option value="液状化">液状化</option>
+          <option value="急傾斜地崩壊">急傾斜地崩壊</option>
+          <option value="揺れ,液状化">揺れ ＋ 液状化</option>
+          <option value="揺れ,急傾斜地崩壊">揺れ ＋ 急傾斜地崩壊</option>
+          <option value="液状化,急傾斜地崩壊">液状化 ＋ 急傾斜地崩壊</option>
+          <option value="揺れ,液状化,急傾斜地崩壊">揺れ ＋ 液状化 ＋ 急傾斜地崩壊</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="damage">被害指標 (合算計算可)</label>
+        <select id="damage">
+          <option value="全壊棟数">全壊棟数</option>
+          <option value="半壊棟数">半壊棟数</option>
+          <option value="全壊棟数,半壊棟数">全半壊棟数（全壊＋半壊）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <h3>判定士数 設定</h3>
+      <div class="control-group">
+        <label for="hanteishi-type">応急危険度判定士 (確保属性)</label>
+        <select id="hanteishi-type">
+          <option value="民間">民間判定士のみ</option>
+          <option value="行政">行政判定士のみ</option>
+          <option value="total" selected>民間＋行政 (合計)</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="assess-period">判定期間 (日)</label>
+        <input type="number" id="assess-period" min="1" step="1" placeholder="例: 7">
+        <p>※1日あたりの必要判定ペースが計算されます。</p>
+      </div>
+
+      <div class="control-group">
+        <label for="assess-capacity">判定可能棟数</label>
+        <input type="number" id="assess-capacity" min="1" step="1" placeholder="例: 10">
+      </div>
+
+      <div class="control-group">
+        <label for="assess-working-days">判定士実働日数 (日)</label>
+        <input type="number" id="assess-working-days" min="1" step="1" placeholder="例: 5">
+      </div>
+    </div>
+
+  </aside>
+
+  <main id="map"></main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const map = L.map('map').setView([43.5, 142.5], 7);
+L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'
+}).addTo(map);
+
+let geojsonLayer;
+let bureauGeojsonLayer;
+let victimData = {};
+let hanteishiData = {};
+let cityToBureau = {};
+
+let rawGeoJSON = typeof hokkaidoData !== 'undefined' ? hokkaidoData : null;
+let rawBureauGeoJSON = typeof bureauData !== 'undefined' ? bureauData : null;
+
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // 1. 被害想定データ (damage.csv) の自動読み込み
+        const resDamage = await fetch('damage.csv');
+        if (!resDamage.ok) throw new Error('damage.csvの取得に失敗しました');
+        const bufferDamage = await resDamage.arrayBuffer();
+        const textDamage = new TextDecoder('shift-jis').decode(bufferDamage);
+        parseCSV(textDamage);
+
+        // 2. 判定士データ (hanteishi.csv) の自動読み込み
+        const resHanteishi = await fetch('hanteishi.csv');
+        if (!resHanteishi.ok) throw new Error('hanteishi.csvの取得に失敗しました');
+        const bufferHanteishi = await resHanteishi.arrayBuffer();
+        const textHanteishi = new TextDecoder('shift-jis').decode(bufferHanteishi);
+        parseHanteishiCSV(textHanteishi);
+
+        // 3. 地図データが読み込まれているか確認して描画
+        if (rawGeoJSON !== null && rawBureauGeoJSON !== null) {
+            renderMap();
+            // 読み込みが完了したらローディング画面を非表示にする
+            document.getElementById('overlay').style.display = 'none';
+        } else {
+            alert("地図データ(jsファイル)の読み込みに失敗しました。");
+        }
+    } catch (error) {
+        console.error("データ読み込みエラー:", error);
+        alert("データの読み込みに失敗しました。\nサーバー上に 'damage.csv' と 'hanteishi.csv' が存在するか確認してください。");
+        document.querySelector('.modal h3').innerText = "読み込みエラー";
+        document.querySelector('.modal h3').style.color = "red";
+        document.querySelector('.modal p').innerText = "CSVファイルの自動読み込みに失敗しました。";
+    }
+});
+
+function parseCSV(csvText) {
+  const lines = csvText.trim().split(/\r\n|\n/);
+  const headerModel = lines[0].split(',');
+  const headerSeason = lines[1].split(',');
+  const headerDamage = lines[2].split(',');
+
+  const modelSet = new Set();
+  for (let j = 3; j < headerModel.length; j++) {
+    if (headerModel[j].trim() && headerModel[j] !== "id") {
+      modelSet.add(headerModel[j].trim());
+    }
+  }
+
+  const modelSelect = document.getElementById('eq-model');
+  modelSelect.innerHTML = '';
+  modelSet.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.innerText = m;
+    modelSelect.appendChild(opt);
+  });
+
+  const bureauSet = new Set();
+  victimData = {};
+  cityToBureau = {}; 
+
+  for (let i = 3; i < lines.length; i++) {
+    const cols = lines[i].split(',');
+    if (cols.length < 3) continue;
+
+    const bureauName = cols[1].replace(/"/g, '').trim();
+    const cityName = cols[2].replace(/"/g, '').trim();
+
+    if (bureauName) {
+      bureauSet.add(bureauName);
+      cityToBureau[cityName] = bureauName; 
+    }
+
+    victimData[cityName] = {};
+    for (let j = 3; j < cols.length; j++) {
+      const key = `${headerModel[j].trim()}_${headerSeason[j].trim()}_${headerDamage[j].trim()}`;
+      victimData[cityName][key] = parseFloat(cols[j]) || 0;
+    }
+  }
+
+  const citySelect = document.getElementById('city-select');
+  citySelect.innerHTML = '<option value="">-- 選択してください --</option>';
+  Object.keys(victimData).forEach(cityName => {
+    const opt = document.createElement('option');
+    opt.value = cityName;
+    opt.innerText = cityName;
+    citySelect.appendChild(opt);
+  });
+
+  const bureauSelect = document.getElementById('bureau-select');
+  bureauSelect.innerHTML = '<option value="">-- 選択してください --</option>';
+  bureauSet.forEach(bureauName => {
+    const opt = document.createElement('option');
+    opt.value = bureauName;
+    opt.innerText = bureauName;
+    bureauSelect.appendChild(opt);
+  });
+
+  updateMaxModelDisplay();
+  updateMaxBureauModelDisplay();
+}
+
+function parseHanteishiCSV(csvText) {
+  const lines = csvText.trim().split(/\r\n|\n/);
+  hanteishiData = {};
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',');
+    if (cols.length < 5) continue;
+
+    const cityName = cols[2].replace(/"/g, '').trim();
+    const minkan = parseInt(cols[3], 10) || 0;
+    const gyousei = parseInt(cols[4], 10) || 0;
+
+    hanteishiData[cityName] = {
+      '民間': minkan,
+      '行政': gyousei
+    };
+  }
+}
+
+function renderMap() {
+  if (geojsonLayer) map.removeLayer(geojsonLayer);
+  geojsonLayer = L.geoJson(rawGeoJSON, {
+    style: style,
+    onEachFeature: onEachFeature
+  }).addTo(map);
+
+  if (bureauGeojsonLayer) map.removeLayer(bureauGeojsonLayer);
+  bureauGeojsonLayer = L.geoJson(rawBureauGeoJSON, {
+    style: {
+      color: 'black',
+      weight: 3,
+      opacity: 1,
+      fillOpacity: 0,
+      interactive: false
+    }
+  }).addTo(map);
+
+  updateLegend();
+}
+
+function getCalculatedDamageSpecific(cityName, model, season, hazards, damages) {
+  if (!victimData[cityName]) return 0;
+  let totalDamage = 0;
+  for (let i = 0; i < hazards.length; i++) {
+    for (let j = 0; j < damages.length; j++) {
+      const key = `${model}_${season}_${hazards[i]}による${damages[j]}`;
+      if (victimData[cityName][key] !== undefined) {
+        totalDamage += victimData[cityName][key];
+      }
+    }
+  }
+  return totalDamage;
+}
+
+function getCalculatedDamage(cityName) {
+  const model = document.getElementById('eq-model').value;
+  const season = document.getElementById('season').value;
+  const hazards = document.getElementById('hazard').value.split(',');
+  const damages = document.getElementById('damage').value.split(',');
+  return getCalculatedDamageSpecific(cityName, model, season, hazards, damages);
+}
+
+function updateMaxModelDisplay() {
+  const displayEl = document.getElementById('max-damage-model-display');
+  const cityName = document.getElementById('city-select').value;
+
+  if (!cityName) {
+    displayEl.innerText = "市町村を選択してください";
+    return;
+  }
+
+  const season = document.getElementById('season').value;
+  const hazards = document.getElementById('hazard').value.split(',');
+  const damages = document.getElementById('damage').value.split(',');
+
+  const modelSelect = document.getElementById('eq-model');
+  const options = Array.from(modelSelect.options);
+
+  let maxDamage = -1;
+  let maxModel = "";
+
+  options.forEach(opt => {
+    const m = opt.value;
+    const d = getCalculatedDamageSpecific(cityName, m, season, hazards, damages);
+    if (d > maxDamage) {
+      maxDamage = d;
+      maxModel = m;
+    }
+  });
+
+  if (maxDamage > 0) {
+    displayEl.innerHTML = `<span style="color:#d63384; font-weight:bold;">${maxModel}</span><br>(想定被害: ${Math.ceil(maxDamage)} 棟)`;
+  } else {
+    displayEl.innerText = "被害想定なし (0棟)";
+  }
+}
+
+function updateMaxBureauModelDisplay() {
+  const displayEl = document.getElementById('max-damage-model-bureau-display');
+  const bureauName = document.getElementById('bureau-select').value;
+
+  if (!bureauName) {
+    displayEl.innerText = "振興局を選択してください";
+    return;
+  }
+
+  const season = document.getElementById('season').value;
+  const hazards = document.getElementById('hazard').value.split(',');
+  const damages = document.getElementById('damage').value.split(',');
+
+  const modelSelect = document.getElementById('eq-model');
+  const options = Array.from(modelSelect.options);
+
+  let maxDamage = -1;
+  let maxModel = "";
+
+  options.forEach(opt => {
+    const m = opt.value;
+    let bureauDamage = 0;
+
+    Object.keys(victimData).forEach(city => {
+      if (cityToBureau[city] === bureauName) {
+        bureauDamage += getCalculatedDamageSpecific(city, m, season, hazards, damages);
+      }
+    });
+
+    if (bureauDamage > maxDamage) {
+      maxDamage = bureauDamage;
+      maxModel = m;
+    }
+  });
+
+  if (maxDamage > 0) {
+    displayEl.innerHTML = `<span style="color:#d63384; font-weight:bold;">${maxModel}</span><br>(管内合計想定被害: ${Math.ceil(maxDamage)} 棟)`;
+  } else {
+    displayEl.innerText = "管内被害想定なし (0棟)";
+  }
+}
+
+function getHanteishiDiff(cityName) {
+  const damageVal = getCalculatedDamage(cityName);
+
+  const periodInput = document.getElementById('assess-period').value;
+  const capacityInput = document.getElementById('assess-capacity').value;
+  const workingDaysInput = document.getElementById('assess-working-days').value;
+
+  const period = parseFloat(periodInput);
+  const capacity = parseFloat(capacityInput);
+  const workingDays = parseFloat(workingDaysInput);
+
+  if (isNaN(period) || period <= 0 || isNaN(capacity) || capacity <= 0 || isNaN(workingDays) || workingDays <= 0) {
+    return null;
+  }
+
+  const requiredHanteishi = (((damageVal / period) / capacity) * 2) * (period / workingDays);
+
+  let actualHanteishi = 0;
+  const hType = document.getElementById('hanteishi-type').value;
+  if (hType !== 'none' && hanteishiData[cityName]) {
+    if (hType === '民間') actualHanteishi = hanteishiData[cityName]['民間'];
+    else if (hType === '行政') actualHanteishi = hanteishiData[cityName]['行政'];
+    else if (hType === 'total') actualHanteishi = hanteishiData[cityName]['民間'] + hanteishiData[cityName]['行政'];
+  }
+
+  return requiredHanteishi - actualHanteishi;
+}
+
+function getDamageColor(d) {
+  return d > 1000 ? '#800026' :
+         d > 500  ? '#BD0026' :
+         d > 100  ? '#E31A1C' :
+         d > 50   ? '#FC4E2A' :
+         d > 10   ? '#FD8D3C' :
+         d > 1    ? '#FEB24C' :
+         d > 0.1  ? '#FED976' :
+         d > 0    ? '#FFEDA0' :
+         'transparent';
+}
+
+function getDiffColor(d) {
+  if (d === null) return 'transparent';
+  if (d >= 100) return '#b2182b';
+  if (d >= 50) return '#d6604d';
+  if (d >= 10) return '#f4a582';
+  if (d > 0) return '#fddbc7';
+  if (d === 0) return 'transparent';
+  if (d > -10) return '#d1e5f0';
+  if (d > -50) return '#92c5de';
+  if (d > -100) return '#4393c3';
+  return '#2166ac';
+}
+
+function style(feature) {
+  const cityName = feature.properties.N03_004 || feature.properties.name;
+  const currentMode = document.querySelector('input[name="display-mode"]:checked').value;
+
+  if (currentMode === 'damage') {
+    const damageVal = getCalculatedDamage(cityName);
+    return {
+      fillColor: getDamageColor(damageVal),
+      weight: 1, opacity: 1, color: '#bbb',
+      fillOpacity: damageVal > 0 ? 0.7 : 0
+    };
+  } else {
+    const diffVal = getHanteishiDiff(cityName);
+    return {
+      fillColor: getDiffColor(diffVal),
+      weight: 1, opacity: 1, color: '#bbb',
+      fillOpacity: (diffVal !== null && diffVal !== 0) ? 0.8 : 0
+    };
+  }
+}
+
+function onEachFeature(feature, layer) {
+  layer.on({
+    mouseover: (e) => {
+      const l = e.target;
+      const cityName = feature.properties.N03_004 || feature.properties.name;
+
+      const damageVal = getCalculatedDamage(cityName);
+      const diffVal = getHanteishiDiff(cityName);
+      const currentMode = document.querySelector('input[name="display-mode"]:checked').value;
+
+      if (currentMode === 'damage') {
+        l.setStyle({ weight: 2, color: '#666', fillOpacity: damageVal > 0 ? 0.9 : 0.2 });
+      } else {
+        l.setStyle({ weight: 2, color: '#666', fillOpacity: (diffVal !== null && diffVal !== 0) ? 0.9 : 0.2 });
+      }
+
+      const hType = document.getElementById('hanteishi-type').value;
+      let hanteishiText = '';
+
+      if (hType !== 'none' && hanteishiData[cityName]) {
+        if (hType === '民間') {
+          hanteishiText = `<hr style="margin:5px 0; border-top:1px dashed #ccc;"><span style="color:#0066cc;">確保判定士 (民間): ${hanteishiData[cityName]['民間']} 人</span>`;
+        } else if (hType === '行政') {
+          hanteishiText = `<hr style="margin:5px 0; border-top:1px dashed #ccc;"><span style="color:#0066cc;">確保判定士 (行政): ${hanteishiData[cityName]['行政']} 人</span>`;
+        } else if (hType === 'total') {
+          const total = hanteishiData[cityName]['民間'] + hanteishiData[cityName]['行政'];
+          hanteishiText = `<hr style="margin:5px 0; border-top:1px dashed #ccc;"><span style="color:#0066cc;">確保判定士 (合計): ${total} 人</span>`;
+        }
+      } else if (hType !== 'none') {
+        hanteishiText = `<hr style="margin:5px 0; border-top:1px dashed #ccc;"><span style="color:#999;">判定士データなし</span>`;
+      }
+
+      const periodInput = document.getElementById('assess-period').value;
+      const capacityInput = document.getElementById('assess-capacity').value;
+      const workingDaysInput = document.getElementById('assess-working-days').value;
+
+      const period = parseFloat(periodInput);
+      const capacity = parseFloat(capacityInput);
+      const workingDays = parseFloat(workingDaysInput);
+
+      let periodText = '';
+      let requiredHanteishiText = '';
+      let diffText = '';
+
+      if (!isNaN(period) && period > 0 && damageVal > 0) {
+        const requiredPerDay = damageVal / period;
+        periodText = `<br><span style="color:#d63384; font-weight:bold;">必要判定ペース: ${requiredPerDay.toFixed(1)} 棟/日</span>`;
+      }
+
+      if (!isNaN(period) && period > 0 &&
+          !isNaN(capacity) && capacity > 0 &&
+          !isNaN(workingDays) && workingDays > 0) {
+
+        const requiredHanteishi = (((damageVal / period) / capacity) * 2) * (period / workingDays);
+        requiredHanteishiText = `<br><span style="color:#dc3545; font-weight:bold;">必要判定士数: ${requiredHanteishi.toFixed(1)} 人</span>`;
+
+        if (diffVal !== null) {
+          const diffSign = diffVal > 0 ? "+" : "";
+          const diffColor = diffVal > 0 ? "#b2182b" : (diffVal < 0 ? "#2166ac" : "#666");
+          diffText = `<br><span style="color:${diffColor}; font-weight:bold;">増減数(必要-確保): ${diffSign}${diffVal.toFixed(1)} 人</span>`;
+        }
+      }
+
+      l.bindTooltip(`
+        <div style="font-size:14px;">
+          <strong>${cityName}</strong><br>
+          想定被害: ${Math.ceil(damageVal)} 棟
+          ${hanteishiText}
+          ${periodText}
+          ${requiredHanteishiText}
+          ${diffText}
+        </div>
+      `).openTooltip();
+    },
+    mouseout: (e) => {
+      geojsonLayer.resetStyle(e.target);
+    }
+  });
+}
+
+document.querySelectorAll('select, input[type="number"], input[type="radio"]').forEach(el => {
+  const updateEvent = (el.tagName.toLowerCase() === 'input' && el.type === 'number') ? 'input' : 'change';
+  el.addEventListener(updateEvent, () => {
+    if (geojsonLayer) geojsonLayer.setStyle(style);
+    updateMaxModelDisplay();
+    updateMaxBureauModelDisplay();
+    updateLegend();
+  });
+});
+
+const legend = L.control({position: 'bottomright'});
+function updateLegend() {
+  if (legend._map) {
+    map.removeControl(legend);
+  }
+  legend.onAdd = function (map) {
+    const div = L.DomUtil.create('div', 'info legend');
+    const currentMode = document.querySelector('input[name="display-mode"]:checked').value;
+
+    if (currentMode === 'damage') {
+      const grades = [0.1, 1, 10, 50, 100, 500, 1000];
+      div.innerHTML = '<strong>被害棟数</strong><br>';
+      div.innerHTML += '<i style="background:transparent; border: 1px solid #ccc; box-sizing: border-box;"></i> 0<br>';
+      for (let i = 0; i < grades.length; i++) {
+        div.innerHTML += '<i style="background:' + getDamageColor(grades[i] + 0.001) + '"></i> ' +
+                         grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+      }
+    } else {
+      div.innerHTML = '<strong>判定士 増減数</strong><br>';
+      div.innerHTML += '<i style="background:#b2182b"></i> 100人以上不足<br>';
+      div.innerHTML += '<i style="background:#d6604d"></i> 50 &ndash; 100人不足<br>';
+      div.innerHTML += '<i style="background:#f4a582"></i> 10 &ndash; 50人不足<br>';
+      div.innerHTML += '<i style="background:#fddbc7"></i> 0 &ndash; 10人不足<br>';
+      div.innerHTML += '<i style="background:transparent; border: 1px solid #ccc; box-sizing: border-box;"></i> 0 (または計算不可)<br>';
+      div.innerHTML += '<i style="background:#d1e5f0"></i> 0 &ndash; 10人余裕<br>';
+      div.innerHTML += '<i style="background:#92c5de"></i> 10 &ndash; 50人余裕<br>';
+      div.innerHTML += '<i style="background:#4393c3"></i> 50 &ndash; 100人余裕<br>';
+      div.innerHTML += '<i style="background:#2166ac"></i> 100人以上余裕<br>';
+    }
+    return div;
+  };
+  legend.addTo(map);
+}
+
+// --- ハンバーガーメニューの開閉制御 ---
+const hamburgerBtn = document.getElementById('hamburger-btn');
+const sidebar = document.getElementById('sidebar');
+
+hamburgerBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('active');
+    
+    if (sidebar.classList.contains('active')) {
+        hamburgerBtn.innerText = '✕ 閉じる';
+        hamburgerBtn.style.background = '#dc3545';
+    } else {
+        hamburgerBtn.innerText = '☰ 設定を開く';
+        hamburgerBtn.style.background = 'var(--accent-color)';
+    }
+});
+
+// 地図をタップした時にサイドバーが開いていたら自動的に閉じる
+map.on('click', () => {
+    if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+        hamburgerBtn.innerText = '☰ 設定を開く';
+        hamburgerBtn.style.background = 'var(--accent-color)';
+    }
+});
+</script>
+</body>
+</html>
