@@ -627,7 +627,6 @@ function getHanteishiDiff(cityName) {
     return null;
   }
 
-  // ★ 必要判定士数の端数を切り上げ
   const requiredHanteishi = Math.ceil((((damageVal / period) / capacity) * 2) * (period / workingDays));
 
   let actualHanteishi = 0;
@@ -638,7 +637,6 @@ function getHanteishiDiff(cityName) {
     else if (hType === 'total') actualHanteishi = hanteishiData[cityName]['民間'] + hanteishiData[cityName]['行政'];
   }
 
-  // 整数の必要数から実数を引くため、増減数も必ず整数になる
   return requiredHanteishi - actualHanteishi;
 }
 
@@ -734,7 +732,6 @@ function onEachFeature(feature, layer) {
 
       if (!isNaN(period) && period > 0 && damageVal > 0) {
         const requiredPerDay = damageVal / period;
-        // ペースは1日あたりの速度指標のため、小数点第1位のまま残しています
         periodText = `<br><span style="color:#d63384; font-weight:bold;">必要判定ペース: ${requiredPerDay.toFixed(1)} 棟/日</span>`;
       }
 
@@ -742,14 +739,12 @@ function onEachFeature(feature, layer) {
           !isNaN(capacity) && capacity > 0 &&
           !isNaN(workingDays) && workingDays > 0) {
 
-        // ★ ここでも必要判定士数を端数切り上げし、カンマ区切りで表示
         const requiredHanteishi = Math.ceil((((damageVal / period) / capacity) * 2) * (period / workingDays));
         requiredHanteishiText = `<br><span style="color:#dc3545; font-weight:bold;">必要判定士数: ${requiredHanteishi.toLocaleString()} 人</span>`;
 
         if (diffVal !== null) {
           const diffSign = diffVal > 0 ? "+" : "";
           const diffColor = diffVal > 0 ? "#b2182b" : (diffVal < 0 ? "#2166ac" : "#666");
-          // ★ 増減数は toFixed(1) を外して整数表示に
           diffText = `<br><span style="color:${diffColor}; font-weight:bold;">増減数(必要-確保): ${diffSign}${diffVal.toLocaleString()} 人</span>`;
         }
       }
@@ -822,21 +817,29 @@ function updateLegend() {
     html += '<div style="clear: both;"></div>';
 
     // --- 2. 振興局ごとの合計部分 ---
-    const bureauSums = {};
+    // 表示用の合計値と、色判定用の被害棟数合計を分けて計算・保持します
+    const bureauDisplaySums = {};
+    const bureauDamageSums = {};
+
     Object.keys(victimData).forEach(city => {
         const bureau = cityToBureau[city];
         if (!bureau) return;
-        if (!bureauSums[bureau]) bureauSums[bureau] = 0;
+        
+        if (!bureauDisplaySums[bureau]) bureauDisplaySums[bureau] = 0;
+        if (!bureauDamageSums[bureau]) bureauDamageSums[bureau] = 0;
+
+        const damage = getCalculatedDamage(city);
+        bureauDamageSums[bureau] += damage;
 
         if (currentMode === 'damage') {
-            bureauSums[bureau] += getCalculatedDamage(city);
+            bureauDisplaySums[bureau] += damage;
         } else {
             const diff = getHanteishiDiff(city);
-            if (diff !== null) bureauSums[bureau] += diff; // 端数処理済みの整数を加算
+            if (diff !== null) bureauDisplaySums[bureau] += diff; 
         }
     });
 
-    const sortedBureaus = Object.keys(bureauSums).sort((a, b) => bureauSums[b] - bureauSums[a]);
+    const sortedBureaus = Object.keys(bureauDisplaySums).sort((a, b) => bureauDisplaySums[b] - bureauDisplaySums[a]);
 
     html += `<hr style="margin: 12px 0; border: 0; border-top: 1px dashed #bbb;">`;
     html += `<strong style="display:block; margin-bottom:5px;">振興局別 合計</strong>`;
@@ -846,16 +849,20 @@ function updateLegend() {
        html += `データ取得中...`;
     } else {
        sortedBureaus.forEach(b => {
-           const val = bureauSums[b];
+           const val = bureauDisplaySums[b];
+           const damageVal = bureauDamageSums[b];
+           
+           // 被害棟数の合計（切り上げ）が1以上なら赤、0なら青に設定
+           const isDamaged = Math.ceil(damageVal) > 0;
+           const nameColor = isDamaged ? '#dc3545' : '#0066cc';
+
            if (currentMode === 'damage') {
-               html += `<div style="display:flex; justify-content:space-between;"><span>${b}:</span> <strong>${Math.ceil(val).toLocaleString()} 棟</strong></div>`;
+               html += `<div style="display:flex; justify-content:space-between;"><span style="color:${nameColor}; font-weight:bold;">${b}:</span> <strong>${Math.ceil(val).toLocaleString()} 棟</strong></div>`;
            } else {
-               // ★ 合計値も確実に切り上げ（通常は整数の足し算なので整数のままですが念のため）
                const roundedVal = Math.ceil(val);
                const sign = roundedVal > 0 ? '+' : '';
                const color = roundedVal > 0 ? '#b2182b' : (roundedVal < 0 ? '#2166ac' : '#555');
-               // ★ toFixed(1) を外し、カンマ区切りの整数表示に
-               html += `<div style="display:flex; justify-content:space-between;"><span>${b}:</span> <span style="color:${color}; font-weight:bold;">${sign}${roundedVal.toLocaleString()} 人</span></div>`;
+               html += `<div style="display:flex; justify-content:space-between;"><span style="color:${nameColor}; font-weight:bold;">${b}:</span> <span style="color:${color}; font-weight:bold;">${sign}${roundedVal.toLocaleString()} 人</span></div>`;
            }
        });
     }
