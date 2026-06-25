@@ -347,20 +347,15 @@ let cityToBureau = {};
 let rawGeoJSON = typeof hokkaidoData !== 'undefined' ? hokkaidoData : null;
 let rawBureauGeoJSON = typeof bureauData !== 'undefined' ? bureauData : null;
 
-// ★★★ ここにコピーしたURLを貼り付けます ★★★
+// GASのURL
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzh3wJWqtxOcZa51My6Ehlo1QYJLpqE1BnuZF_ufHW6lpgrahB3KkJFmoRe17XWOiyS1g/exec';
 
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        if (GAS_URL === 'https://script.google.com/macros/s/AKfycbzh3wJWqtxOcZa51My6Ehlo1QYJLpqE1BnuZF_ufHW6lpgrahB3KkJFmoRe17XWOiyS1g/exec') {
-            alert("コード内の「GAS_URL」が設定されていません。URLを貼り付けてから再度お試しください。");
-            return;
-        }
-
         // 1. GASから被害想定データ (damage) を自動読み込み
         const resDamage = await fetch(`${GAS_URL}?type=damage`);
         if (!resDamage.ok) throw new Error('被害想定データの取得に失敗しました');
-        const textDamage = await resDamage.text(); // GASからは直接テキストで受け取る
+        const textDamage = await resDamage.text();
         parseCSV(textDamage);
 
         // 2. GASから判定士データ (hanteishi) を自動読み込み
@@ -372,7 +367,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         // 3. 地図データが読み込まれているか確認して描画
         if (rawGeoJSON !== null && rawBureauGeoJSON !== null) {
             renderMap();
-            // 読み込みが完了したらローディング画面を非表示にする
             document.getElementById('overlay').style.display = 'none';
         } else {
             alert("地図データ(jsファイル)の読み込みに失敗しました。");
