@@ -155,7 +155,7 @@ select, input[type="number"] {
   max-height: 75vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  min-width: 220px;
+  min-width: 240px;
 }
 .legend div {
   margin-bottom: 3px;
@@ -817,9 +817,10 @@ function updateLegend() {
     html += '<div style="clear: both;"></div>';
 
     // --- 2. 振興局ごとの合計部分 ---
-    // 表示用の合計値と、色判定用の被害棟数合計を分けて計算・保持します
     const bureauDisplaySums = {};
     const bureauDamageSums = {};
+    const bureauHanteishiSums = {}; // 全道および非被災集計用の判定士増減数保持用
+    let isHanteishiCalculable = true;
 
     Object.keys(victimData).forEach(city => {
         const bureau = cityToBureau[city];
@@ -827,14 +828,21 @@ function updateLegend() {
         
         if (!bureauDisplaySums[bureau]) bureauDisplaySums[bureau] = 0;
         if (!bureauDamageSums[bureau]) bureauDamageSums[bureau] = 0;
+        if (!bureauHanteishiSums[bureau]) bureauHanteishiSums[bureau] = 0;
 
         const damage = getCalculatedDamage(city);
         bureauDamageSums[bureau] += damage;
 
+        const diff = getHanteishiDiff(city);
+        if (diff !== null) {
+            bureauHanteishiSums[bureau] += diff;
+        } else {
+            isHanteishiCalculable = false;
+        }
+
         if (currentMode === 'damage') {
             bureauDisplaySums[bureau] += damage;
         } else {
-            const diff = getHanteishiDiff(city);
             if (diff !== null) bureauDisplaySums[bureau] += diff; 
         }
     });
@@ -852,7 +860,6 @@ function updateLegend() {
            const val = bureauDisplaySums[b];
            const damageVal = bureauDamageSums[b];
            
-           // 被害棟数の合計（切り上げ）が1以上なら赤、0なら青に設定
            const isDamaged = Math.ceil(damageVal) > 0;
            const nameColor = isDamaged ? '#dc3545' : '#0066cc';
 
@@ -865,6 +872,43 @@ function updateLegend() {
                html += `<div style="display:flex; justify-content:space-between;"><span style="color:${nameColor}; font-weight:bold;">${b}:</span> <span style="color:${color}; font-weight:bold;">${sign}${roundedVal.toLocaleString()} 人</span></div>`;
            }
        });
+    }
+    html += `</div>`;
+
+    // --- 3. 新たに追加された総括凡例（広域集計部分） ---
+    html += `<hr style="margin: 12px 0; border: 0; border-top: 1px dashed #bbb;">`;
+    html += `<strong style="display:block; margin-bottom:5px;">全道集計</strong>`;
+    html += `<div style="line-height: 1.5; padding-bottom: 5px;">`;
+
+    if (!isHanteishiCalculable) {
+        html += `<div style="color:#666; font-size:0.8rem; text-align:center;">判定士設定（判定期間等）を<br>入力すると集計されます</div>`;
+    } else {
+        // 北海道全体の判定士増減数を算出
+        let totalHanteishiDiff = 0;
+        let nonDamagedHanteishiDiff = 0;
+
+        Object.keys(bureauHanteishiSums).forEach(bureau => {
+            const hVal = bureauHanteishiSums[bureau];
+            totalHanteishiDiff += hVal;
+            // 被害棟数の合計（切り上げ）が0棟の振興局（凡例で青文字の振興局）
+            if (Math.ceil(bureauDamageSums[bureau]) === 0) {
+                nonDamagedHanteishiDiff += hVal;
+            }
+        });
+
+        // 北海道全体の表示処理
+        const totalSign = totalHanteishiDiff > 0 ? '+' : '';
+        const totalColor = totalHanteishiDiff > 0 ? '#b2182b' : (totalHanteishiDiff < 0 ? '#2166ac' : '#555');
+        html += `<div style="display:flex; justify-content:space-between; flex-direction:column; margin-bottom:5px;">` +
+                `<span style="font-size:0.8rem; color:#555;">北海道全体の判定士増減数:</span>` +
+                `<span style="color:${totalColor}; font-weight:bold; text-align:right;">${totalSign}${totalHanteishiDiff.toLocaleString()} 人</span></div>`;
+
+        // 非被災振興局の表示処理
+        const nonDamagedSign = nonDamagedHanteishiDiff > 0 ? '+' : '';
+        const nonDamagedColor = nonDamagedHanteishiDiff > 0 ? '#b2182b' : (nonDamagedHanteishiDiff < 0 ? '#2166ac' : '#555');
+        html += `<div style="display:flex; justify-content:space-between; flex-direction:column;">` +
+                `<span style="font-size:0.8rem; color:#555;">非被災振興局の判定士数:</span>` +
+                `<span style="color:${nonDamagedColor}; font-weight:bold; text-align:right;">${nonDamagedSign}${nonDamagedHanteishiDiff.toLocaleString()} 人</span></div>`;
     }
     html += `</div>`;
 
