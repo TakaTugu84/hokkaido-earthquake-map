@@ -147,27 +147,15 @@ select, input[type="number"] {
 
 .legend {
   background: white;
-  padding: 10px 15px;
+  padding: 15px;
   color: #333;
   box-shadow: 0 0 15px rgba(0,0,0,0.2);
   border-radius: 8px;
   font-size: 0.85rem;
-  max-height: 75vh;
+  max-height: 80vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  min-width: 240px;
-}
-.legend div {
-  margin-bottom: 3px;
-}
-.legend i {
-  width: 16px;
-  height: 16px;
-  float: left;
-  margin-right: 8px;
-  opacity: 0.8;
-  border: 1px solid #999;
-  border-radius: 2px;
+  min-width: 250px;
 }
 .legend::-webkit-scrollbar {
   width: 6px;
@@ -175,6 +163,48 @@ select, input[type="number"] {
 .legend::-webkit-scrollbar-thumb {
   background-color: #bbb;
   border-radius: 3px;
+}
+
+/* --- 折りたたみ（アコーディオン）用のCSS --- */
+.legend details {
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eaeaea;
+  padding-bottom: 8px;
+}
+.legend details:last-child {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.legend summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: #333;
+  outline: none;
+  user-select: none;
+  padding: 2px 0;
+  transition: color 0.2s;
+}
+.legend summary:hover {
+  color: var(--accent-color);
+}
+.legend-content {
+  margin-top: 10px;
+  padding-left: 5px;
+  line-height: 1.6;
+}
+.legend-content div {
+  margin-bottom: 4px;
+}
+.legend-content i {
+  width: 16px;
+  height: 16px;
+  float: left;
+  margin-right: 8px;
+  margin-top: 2px;
+  opacity: 0.8;
+  border: 1px solid #999;
+  border-radius: 2px;
 }
 
 /* --- スマホ用・ハンバーガーメニューのCSS --- */
@@ -365,21 +395,25 @@ let rawBureauGeoJSON = typeof bureauData !== 'undefined' ? bureauData : null;
 // GASのURL
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzh3wJWqtxOcZa51My6Ehlo1QYJLpqE1BnuZF_ufHW6lpgrahB3KkJFmoRe17XWOiyS1g/exec';
 
+// 凡例の開閉状態を記憶する変数（初期状態：振興局別合計のみ閉じる）
+let legendState = {
+    sec1: true,  // 色分け凡例
+    sec2: false, // 振興局別合計
+    sec3: true   // 全道集計
+};
+
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        // 1. GASから被害想定データ (damage) を自動読み込み
         const resDamage = await fetch(`${GAS_URL}?type=damage`);
         if (!resDamage.ok) throw new Error('被害想定データの取得に失敗しました');
         const textDamage = await resDamage.text();
         parseCSV(textDamage);
 
-        // 2. GASから判定士データ (hanteishi) を自動読み込み
         const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi`);
         if (!resHanteishi.ok) throw new Error('判定士データの取得に失敗しました');
         const textHanteishi = await resHanteishi.text();
         parseHanteishiCSV(textHanteishi);
 
-        // 3. 地図データが読み込まれているか確認して描画
         if (rawGeoJSON !== null && rawBureauGeoJSON !== null) {
             renderMap();
             document.getElementById('overlay').style.display = 'none';
@@ -792,17 +826,18 @@ function updateLegend() {
 
     let html = '';
     
-    // --- 1. 凡例の色分け部分 ---
+    // --- 1. 凡例の色分け部分 (アコーディオン) ---
+    html += `<details id="legend-sec1" ${legendState.sec1 ? 'open' : ''}>`;
     if (currentMode === 'damage') {
+      html += `<summary>被害棟数 凡例</summary><div class="legend-content">`;
       const grades = [0.1, 1, 10, 50, 100, 500, 1000];
-      html += '<strong style="display:block; margin-bottom:5px;">被害棟数 凡例</strong>';
       html += '<div><i style="background:transparent; border: 1px solid #ccc; box-sizing: border-box;"></i> 0</div>';
       for (let i = 0; i < grades.length; i++) {
         html += '<div><i style="background:' + getDamageColor(grades[i] + 0.001) + '"></i> ' +
                  grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] : '+') + '</div>';
       }
     } else {
-      html += '<strong style="display:block; margin-bottom:5px;">判定士 増減数 凡例</strong>';
+      html += `<summary>判定士 増減数 凡例</summary><div class="legend-content">`;
       html += '<div><i style="background:#b2182b"></i> 100人以上不足</div>';
       html += '<div><i style="background:#d6604d"></i> 50 &ndash; 100人不足</div>';
       html += '<div><i style="background:#f4a582"></i> 10 &ndash; 50人不足</div>';
@@ -813,13 +848,12 @@ function updateLegend() {
       html += '<div><i style="background:#4393c3"></i> 50 &ndash; 100人余裕</div>';
       html += '<div><i style="background:#2166ac"></i> 100人以上余裕</div>';
     }
+    html += `<div style="clear: both;"></div></div></details>`;
 
-    html += '<div style="clear: both;"></div>';
-
-    // --- 2. 振興局ごとの合計部分 ---
+    // --- 2. 振興局ごとの合計部分 (アコーディオン) ---
     const bureauDisplaySums = {};
     const bureauDamageSums = {};
-    const bureauHanteishiSums = {}; // 全道および非被災集計用の判定士増減数保持用
+    const bureauHanteishiSums = {}; 
     let isHanteishiCalculable = true;
 
     Object.keys(victimData).forEach(city => {
@@ -849,9 +883,8 @@ function updateLegend() {
 
     const sortedBureaus = Object.keys(bureauDisplaySums).sort((a, b) => bureauDisplaySums[b] - bureauDisplaySums[a]);
 
-    html += `<hr style="margin: 12px 0; border: 0; border-top: 1px dashed #bbb;">`;
-    html += `<strong style="display:block; margin-bottom:5px;">振興局別 合計</strong>`;
-    html += `<div style="line-height: 1.5; padding-bottom: 5px;">`;
+    html += `<details id="legend-sec2" ${legendState.sec2 ? 'open' : ''}>`;
+    html += `<summary>振興局別 合計</summary><div class="legend-content" style="padding-bottom: 5px;">`;
 
     if (sortedBureaus.length === 0) {
        html += `データ取得中...`;
@@ -873,46 +906,47 @@ function updateLegend() {
            }
        });
     }
-    html += `</div>`;
+    html += `</div></details>`;
 
-    // --- 3. 新たに追加された総括凡例（広域集計部分） ---
-    html += `<hr style="margin: 12px 0; border: 0; border-top: 1px dashed #bbb;">`;
-    html += `<strong style="display:block; margin-bottom:5px;">全道集計</strong>`;
-    html += `<div style="line-height: 1.5; padding-bottom: 5px;">`;
+    // --- 3. 全道集計部分 (アコーディオン) ---
+    html += `<details id="legend-sec3" ${legendState.sec3 ? 'open' : ''}>`;
+    html += `<summary>全道集計</summary><div class="legend-content" style="padding-bottom: 5px;">`;
 
     if (!isHanteishiCalculable) {
         html += `<div style="color:#666; font-size:0.8rem; text-align:center;">判定士設定（判定期間等）を<br>入力すると集計されます</div>`;
     } else {
-        // 北海道全体の判定士増減数を算出
         let totalHanteishiDiff = 0;
         let nonDamagedHanteishiDiff = 0;
 
         Object.keys(bureauHanteishiSums).forEach(bureau => {
             const hVal = bureauHanteishiSums[bureau];
             totalHanteishiDiff += hVal;
-            // 被害棟数の合計（切り上げ）が0棟の振興局（凡例で青文字の振興局）
             if (Math.ceil(bureauDamageSums[bureau]) === 0) {
                 nonDamagedHanteishiDiff += hVal;
             }
         });
 
-        // 北海道全体の表示処理
         const totalSign = totalHanteishiDiff > 0 ? '+' : '';
         const totalColor = totalHanteishiDiff > 0 ? '#b2182b' : (totalHanteishiDiff < 0 ? '#2166ac' : '#555');
-        html += `<div style="display:flex; justify-content:space-between; flex-direction:column; margin-bottom:5px;">` +
+        html += `<div style="display:flex; justify-content:space-between; flex-direction:column; margin-bottom:8px;">` +
                 `<span style="font-size:0.8rem; color:#555;">北海道全体の判定士増減数:</span>` +
-                `<span style="color:${totalColor}; font-weight:bold; text-align:right;">${totalSign}${totalHanteishiDiff.toLocaleString()} 人</span></div>`;
+                `<span style="color:${totalColor}; font-weight:bold; text-align:right; font-size:1.05rem;">${totalSign}${totalHanteishiDiff.toLocaleString()} 人</span></div>`;
 
-        // 非被災振興局の表示処理
         const nonDamagedSign = nonDamagedHanteishiDiff > 0 ? '+' : '';
         const nonDamagedColor = nonDamagedHanteishiDiff > 0 ? '#b2182b' : (nonDamagedHanteishiDiff < 0 ? '#2166ac' : '#555');
         html += `<div style="display:flex; justify-content:space-between; flex-direction:column;">` +
                 `<span style="font-size:0.8rem; color:#555;">非被災振興局の判定士数:</span>` +
-                `<span style="color:${nonDamagedColor}; font-weight:bold; text-align:right;">${nonDamagedSign}${nonDamagedHanteishiDiff.toLocaleString()} 人</span></div>`;
+                `<span style="color:${nonDamagedColor}; font-weight:bold; text-align:right; font-size:1.05rem;">${nonDamagedSign}${nonDamagedHanteishiDiff.toLocaleString()} 人</span></div>`;
     }
-    html += `</div>`;
+    html += `</div></details>`;
 
     div.innerHTML = html;
+
+    // 開閉状態が変更されたら変数を更新するイベントリスナーを付与
+    div.querySelector('#legend-sec1').addEventListener('toggle', function(e) { legendState.sec1 = e.target.open; });
+    div.querySelector('#legend-sec2').addEventListener('toggle', function(e) { legendState.sec2 = e.target.open; });
+    div.querySelector('#legend-sec3').addEventListener('toggle', function(e) { legendState.sec3 = e.target.open; });
+
     return div;
   };
   legend.addTo(map);
