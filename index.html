@@ -145,14 +145,22 @@ select, input[type="number"] {
   overflow-y: auto;
 }
 
+/* --- 改良された凡例パネルのCSS --- */
 .legend {
   background: white;
-  padding: 10px;
-  line-height: 20px;
+  padding: 10px 15px;
   color: #333;
   box-shadow: 0 0 15px rgba(0,0,0,0.2);
-  border-radius: 4px;
-  font-size: 0.8rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  /* iPadなどの見切れ防止（画面の高さの75%まで許容し、超えたらスクロール） */
+  max-height: 75vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-width: 220px;
+}
+.legend div {
+  margin-bottom: 3px;
 }
 .legend i {
   width: 16px;
@@ -161,6 +169,15 @@ select, input[type="number"] {
   margin-right: 8px;
   opacity: 0.8;
   border: 1px solid #999;
+  border-radius: 2px;
+}
+/* スクロールバーのデザイン */
+.legend::-webkit-scrollbar {
+  width: 6px;
+}
+.legend::-webkit-scrollbar-thumb {
+  background-color: #bbb;
+  border-radius: 3px;
 }
 
 /* --- スマホ用・ハンバーガーメニューのCSS --- */
@@ -381,16 +398,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// 振興局の選択に合わせて市町村リストを更新する関数
 function updateCitySelectOptions() {
   const bureauName = document.getElementById('bureau-select').value;
   const citySelect = document.getElementById('city-select');
   const currentCity = citySelect.value;
   
-  // 市町村リストを一旦クリア
   citySelect.innerHTML = '<option value="">-- 選択してください --</option>';
   
-  // 選択された振興局に属する市町村のみを追加
   Object.keys(victimData).forEach(cityName => {
     if (bureauName === "" || cityToBureau[cityName] === bureauName) {
       const opt = document.createElement('option');
@@ -400,7 +414,6 @@ function updateCitySelectOptions() {
     }
   });
 
-  // もし絞り込み後も、元々選んでいた市町村がリストに残っていれば選択を維持する
   if (currentCity && Array.from(citySelect.options).some(opt => opt.value === currentCity)) {
     citySelect.value = currentCity;
   }
@@ -459,9 +472,7 @@ function parseCSV(csvText) {
     bureauSelect.appendChild(opt);
   });
 
-  // 市町村リストの初期生成を呼び出す
   updateCitySelectOptions();
-
   updateMaxModelDisplay();
   updateMaxBureauModelDisplay();
 }
@@ -761,7 +772,6 @@ function onEachFeature(feature, layer) {
 document.querySelectorAll('select, input[type="number"], input[type="radio"]').forEach(el => {
   const updateEvent = (el.tagName.toLowerCase() === 'input' && el.type === 'number') ? 'input' : 'change';
   el.addEventListener(updateEvent, (e) => {
-    // 振興局が変更されたら市町村リストを更新する
     if (e.target.id === 'bureau-select') {
       updateCitySelectOptions();
     }
@@ -773,7 +783,9 @@ document.querySelectorAll('select, input[type="number"], input[type="radio"]').f
   });
 });
 
-const legend = L.control({position: 'bottomright'});
+// ★ 凡例の配置を topright (右上) に変更
+const legend = L.control({position: 'topright'});
+
 function updateLegend() {
   if (legend._map) {
     map.removeControl(legend);
@@ -782,26 +794,71 @@ function updateLegend() {
     const div = L.DomUtil.create('div', 'info legend');
     const currentMode = document.querySelector('input[name="display-mode"]:checked').value;
 
+    let html = '';
+    
+    // --- 1. 凡例の色分け部分 ---
     if (currentMode === 'damage') {
       const grades = [0.1, 1, 10, 50, 100, 500, 1000];
-      div.innerHTML = '<strong>被害棟数</strong><br>';
-      div.innerHTML += '<i style="background:transparent; border: 1px solid #ccc; box-sizing: border-box;"></i> 0<br>';
+      html += '<strong style="display:block; margin-bottom:5px;">被害棟数 凡例</strong>';
+      html += '<div><i style="background:transparent; border: 1px solid #ccc; box-sizing: border-box;"></i> 0</div>';
       for (let i = 0; i < grades.length; i++) {
-        div.innerHTML += '<i style="background:' + getDamageColor(grades[i] + 0.001) + '"></i> ' +
-                         grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+        html += '<div><i style="background:' + getDamageColor(grades[i] + 0.001) + '"></i> ' +
+                 grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] : '+') + '</div>';
       }
     } else {
-      div.innerHTML = '<strong>判定士 増減数</strong><br>';
-      div.innerHTML += '<i style="background:#b2182b"></i> 100人以上不足<br>';
-      div.innerHTML += '<i style="background:#d6604d"></i> 50 &ndash; 100人不足<br>';
-      div.innerHTML += '<i style="background:#f4a582"></i> 10 &ndash; 50人不足<br>';
-      div.innerHTML += '<i style="background:#fddbc7"></i> 0 &ndash; 10人不足<br>';
-      div.innerHTML += '<i style="background:transparent; border: 1px solid #ccc; box-sizing: border-box;"></i> 0 (または計算不可)<br>';
-      div.innerHTML += '<i style="background:#d1e5f0"></i> 0 &ndash; 10人余裕<br>';
-      div.innerHTML += '<i style="background:#92c5de"></i> 10 &ndash; 50人余裕<br>';
-      div.innerHTML += '<i style="background:#4393c3"></i> 50 &ndash; 100人余裕<br>';
-      div.innerHTML += '<i style="background:#2166ac"></i> 100人以上余裕<br>';
+      html += '<strong style="display:block; margin-bottom:5px;">判定士 増減数 凡例</strong>';
+      html += '<div><i style="background:#b2182b"></i> 100人以上不足</div>';
+      html += '<div><i style="background:#d6604d"></i> 50 &ndash; 100人不足</div>';
+      html += '<div><i style="background:#f4a582"></i> 10 &ndash; 50人不足</div>';
+      html += '<div><i style="background:#fddbc7"></i> 0 &ndash; 10人不足</div>';
+      html += '<div><i style="background:transparent; border: 1px solid #ccc; box-sizing: border-box;"></i> 0 (計算不可)</div>';
+      html += '<div><i style="background:#d1e5f0"></i> 0 &ndash; 10人余裕</div>';
+      html += '<div><i style="background:#92c5de"></i> 10 &ndash; 50人余裕</div>';
+      html += '<div><i style="background:#4393c3"></i> 50 &ndash; 100人余裕</div>';
+      html += '<div><i style="background:#2166ac"></i> 100人以上余裕</div>';
     }
+
+    html += '<div style="clear: both;"></div>';
+
+    // --- 2. 振興局ごとの合計部分 ---
+    const bureauSums = {};
+    Object.keys(victimData).forEach(city => {
+        const bureau = cityToBureau[city];
+        if (!bureau) return;
+        if (!bureauSums[bureau]) bureauSums[bureau] = 0;
+
+        if (currentMode === 'damage') {
+            bureauSums[bureau] += getCalculatedDamage(city);
+        } else {
+            const diff = getHanteishiDiff(city);
+            if (diff !== null) bureauSums[bureau] += diff;
+        }
+    });
+
+    // 値が大きい順（被害が多い順・不足が深刻な順）に並び替え
+    const sortedBureaus = Object.keys(bureauSums).sort((a, b) => bureauSums[b] - bureauSums[a]);
+
+    html += `<hr style="margin: 12px 0; border: 0; border-top: 1px dashed #bbb;">`;
+    html += `<strong style="display:block; margin-bottom:5px;">振興局別 合計</strong>`;
+    html += `<div style="line-height: 1.5; padding-bottom: 5px;">`;
+
+    if (sortedBureaus.length === 0) {
+       html += `データ取得中...`;
+    } else {
+       sortedBureaus.forEach(b => {
+           const val = bureauSums[b];
+           if (currentMode === 'damage') {
+               html += `<div style="display:flex; justify-content:space-between;"><span>${b}:</span> <strong>${Math.ceil(val).toLocaleString()} 棟</strong></div>`;
+           } else {
+               const sign = val > 0 ? '+' : '';
+               const color = val > 0 ? '#b2182b' : (val < 0 ? '#2166ac' : '#555');
+               html += `<div style="display:flex; justify-content:space-between;"><span>${b}:</span> <span style="color:${color}; font-weight:bold;">${sign}${val.toFixed(1)} 人</span></div>`;
+           }
+       });
+    }
+    html += `</div>`;
+
+    div.innerHTML = html;
     return div;
   };
   legend.addTo(map);
