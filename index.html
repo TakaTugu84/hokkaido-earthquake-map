@@ -163,9 +163,9 @@ select, input[type="number"] {
   border: 1px solid #999;
 }
 
-/* --- ここからスマホ用・ハンバーガーメニューのCSS --- */
+/* --- スマホ用・ハンバーガーメニューのCSS --- */
 #hamburger-btn {
-  display: none; /* パソコンでは非表示 */
+  display: none;
   position: absolute;
   top: 15px;
   left: 15px;
@@ -180,34 +180,27 @@ select, input[type="number"] {
   box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 
-/* 画面幅が768px以下（スマホ・タブレット縦向き）の場合のレイアウト */
 @media (max-width: 768px) {
   #hamburger-btn {
-    display: block; /* スマホでボタンを表示 */
+    display: block;
   }
-
   #sidebar {
     position: absolute;
     top: 0;
-    left: -100%; /* 初期状態は画面の左外に隠す */
+    left: -100%;
     height: 100vh;
-    width: 85%; /* スマホでのサイドバーの幅 */
+    width: 85%;
     max-width: 320px;
-    transition: left 0.3s ease; /* スライドアニメーション */
+    transition: left 0.3s ease;
     box-shadow: 2px 0 15px rgba(0,0,0,0.5);
   }
-
-  /* JavaScriptで .active クラスがついた時に画面内に引き出す */
   #sidebar.active {
     left: 0;
   }
-
-  /* 地図のズームボタンが設定ボタンと重ならないように下にずらす */
   .leaflet-top.leaflet-left {
     top: 60px;
   }
 }
-/* --- ここまで --- */
 </style>
 
 <script src="hokkaido.js"></script>
@@ -217,8 +210,8 @@ select, input[type="number"] {
 
 <div id="overlay">
   <div class="modal">
-    <h3>システム初期化中...</h3>
-    <p style="font-size: 0.9rem; color: #666;">データを自動で読み込んでいます。少々お待ちください。</p>
+    <h3>Googleデータベースと通信中...</h3>
+    <p style="font-size: 0.9rem; color: #666;">最新のデータを取得しています。少々お待ちください。</p>
   </div>
 </div>
 
@@ -354,20 +347,26 @@ let cityToBureau = {};
 let rawGeoJSON = typeof hokkaidoData !== 'undefined' ? hokkaidoData : null;
 let rawBureauGeoJSON = typeof bureauData !== 'undefined' ? bureauData : null;
 
+// ★★★ ここにコピーしたURLを貼り付けます ★★★
+const GAS_URL = 'ここにコピーしたウェブアプリのURLを貼り付けてください';
+
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        // 1. 被害想定データ (damage.csv) の自動読み込み
-        const resDamage = await fetch('damage.csv');
-        if (!resDamage.ok) throw new Error('damage.csvの取得に失敗しました');
-        const bufferDamage = await resDamage.arrayBuffer();
-        const textDamage = new TextDecoder('shift-jis').decode(bufferDamage);
+        if (GAS_URL === 'https://script.google.com/macros/s/AKfycbzh3wJWqtxOcZa51My6Ehlo1QYJLpqE1BnuZF_ufHW6lpgrahB3KkJFmoRe17XWOiyS1g/exec') {
+            alert("コード内の「GAS_URL」が設定されていません。URLを貼り付けてから再度お試しください。");
+            return;
+        }
+
+        // 1. GASから被害想定データ (damage) を自動読み込み
+        const resDamage = await fetch(`${GAS_URL}?type=damage`);
+        if (!resDamage.ok) throw new Error('被害想定データの取得に失敗しました');
+        const textDamage = await resDamage.text(); // GASからは直接テキストで受け取る
         parseCSV(textDamage);
 
-        // 2. 判定士データ (hanteishi.csv) の自動読み込み
-        const resHanteishi = await fetch('hanteishi.csv');
-        if (!resHanteishi.ok) throw new Error('hanteishi.csvの取得に失敗しました');
-        const bufferHanteishi = await resHanteishi.arrayBuffer();
-        const textHanteishi = new TextDecoder('shift-jis').decode(bufferHanteishi);
+        // 2. GASから判定士データ (hanteishi) を自動読み込み
+        const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi`);
+        if (!resHanteishi.ok) throw new Error('判定士データの取得に失敗しました');
+        const textHanteishi = await resHanteishi.text();
         parseHanteishiCSV(textHanteishi);
 
         // 3. 地図データが読み込まれているか確認して描画
@@ -380,10 +379,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
     } catch (error) {
         console.error("データ読み込みエラー:", error);
-        alert("データの読み込みに失敗しました。\nサーバー上に 'damage.csv' と 'hanteishi.csv' が存在するか確認してください。");
+        alert("データの読み込みに失敗しました。\n通信状況やGASのURLが正しいか確認してください。");
         document.querySelector('.modal h3').innerText = "読み込みエラー";
         document.querySelector('.modal h3').style.color = "red";
-        document.querySelector('.modal p').innerText = "CSVファイルの自動読み込みに失敗しました。";
+        document.querySelector('.modal p').innerText = "Googleからのデータ取得に失敗しました。";
     }
 });
 
@@ -805,7 +804,6 @@ hamburgerBtn.addEventListener('click', () => {
     }
 });
 
-// 地図をタップした時にサイドバーが開いていたら自動的に閉じる
 map.on('click', () => {
     if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
         sidebar.classList.remove('active');
