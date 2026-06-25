@@ -229,20 +229,7 @@ select, input[type="number"] {
     </div>
 
     <div class="setting-group">
-      <h3>市町村・振興局 選択</h3>
-      <div class="control-group">
-        <label for="city-select">市町村リスト</label>
-        <select id="city-select">
-          <option value="">-- 選択してください --</option>
-        </select>
-      </div>
-
-      <div class="control-group">
-        <label>【参考】最大となる想定地震モデル</label>
-        <div id="max-damage-model-display" style="padding: 8px; background: #fff; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem; color: #333; line-height: 1.4;">
-          市町村を選択してください
-        </div>
-      </div>
+      <h3>振興局・市町村 選択</h3>
 
       <div class="control-group">
         <label for="bureau-select">振興局リスト</label>
@@ -255,6 +242,20 @@ select, input[type="number"] {
         <label>【参考】最大となる想定地震モデル</label>
         <div id="max-damage-model-bureau-display" style="padding: 8px; background: #fff; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem; color: #333; line-height: 1.4;">
           振興局を選択してください
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label for="city-select">市町村リスト</label>
+        <select id="city-select">
+          <option value="">-- 選択してください --</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>【参考】最大となる想定地震モデル</label>
+        <div id="max-damage-model-display" style="padding: 8px; background: #fff; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem; color: #333; line-height: 1.4;">
+          市町村を選択してください
         </div>
       </div>
     </div>
@@ -380,6 +381,31 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// 振興局の選択に合わせて市町村リストを更新する関数
+function updateCitySelectOptions() {
+  const bureauName = document.getElementById('bureau-select').value;
+  const citySelect = document.getElementById('city-select');
+  const currentCity = citySelect.value;
+  
+  // 市町村リストを一旦クリア
+  citySelect.innerHTML = '<option value="">-- 選択してください --</option>';
+  
+  // 選択された振興局に属する市町村のみを追加
+  Object.keys(victimData).forEach(cityName => {
+    if (bureauName === "" || cityToBureau[cityName] === bureauName) {
+      const opt = document.createElement('option');
+      opt.value = cityName;
+      opt.innerText = cityName;
+      citySelect.appendChild(opt);
+    }
+  });
+
+  // もし絞り込み後も、元々選んでいた市町村がリストに残っていれば選択を維持する
+  if (currentCity && Array.from(citySelect.options).some(opt => opt.value === currentCity)) {
+    citySelect.value = currentCity;
+  }
+}
+
 function parseCSV(csvText) {
   const lines = csvText.trim().split(/\r\n|\n/);
   const headerModel = lines[0].split(',');
@@ -424,15 +450,6 @@ function parseCSV(csvText) {
     }
   }
 
-  const citySelect = document.getElementById('city-select');
-  citySelect.innerHTML = '<option value="">-- 選択してください --</option>';
-  Object.keys(victimData).forEach(cityName => {
-    const opt = document.createElement('option');
-    opt.value = cityName;
-    opt.innerText = cityName;
-    citySelect.appendChild(opt);
-  });
-
   const bureauSelect = document.getElementById('bureau-select');
   bureauSelect.innerHTML = '<option value="">-- 選択してください --</option>';
   bureauSet.forEach(bureauName => {
@@ -441,6 +458,9 @@ function parseCSV(csvText) {
     opt.innerText = bureauName;
     bureauSelect.appendChild(opt);
   });
+
+  // 市町村リストの初期生成を呼び出す
+  updateCitySelectOptions();
 
   updateMaxModelDisplay();
   updateMaxBureauModelDisplay();
@@ -740,7 +760,12 @@ function onEachFeature(feature, layer) {
 
 document.querySelectorAll('select, input[type="number"], input[type="radio"]').forEach(el => {
   const updateEvent = (el.tagName.toLowerCase() === 'input' && el.type === 'number') ? 'input' : 'change';
-  el.addEventListener(updateEvent, () => {
+  el.addEventListener(updateEvent, (e) => {
+    // 振興局が変更されたら市町村リストを更新する
+    if (e.target.id === 'bureau-select') {
+      updateCitySelectOptions();
+    }
+    
     if (geojsonLayer) geojsonLayer.setStyle(style);
     updateMaxModelDisplay();
     updateMaxBureauModelDisplay();
