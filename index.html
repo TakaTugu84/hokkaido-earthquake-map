@@ -145,7 +145,6 @@ select, input[type="number"] {
   overflow-y: auto;
 }
 
-/* --- 改良された凡例パネルのCSS --- */
 .legend {
   background: white;
   padding: 10px 15px;
@@ -153,7 +152,6 @@ select, input[type="number"] {
   box-shadow: 0 0 15px rgba(0,0,0,0.2);
   border-radius: 8px;
   font-size: 0.85rem;
-  /* iPadなどの見切れ防止（画面の高さの75%まで許容し、超えたらスクロール） */
   max-height: 75vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -171,7 +169,6 @@ select, input[type="number"] {
   border: 1px solid #999;
   border-radius: 2px;
 }
-/* スクロールバーのデザイン */
 .legend::-webkit-scrollbar {
   width: 6px;
 }
@@ -630,7 +627,8 @@ function getHanteishiDiff(cityName) {
     return null;
   }
 
-  const requiredHanteishi = (((damageVal / period) / capacity) * 2) * (period / workingDays);
+  // ★ 必要判定士数の端数を切り上げ
+  const requiredHanteishi = Math.ceil((((damageVal / period) / capacity) * 2) * (period / workingDays));
 
   let actualHanteishi = 0;
   const hType = document.getElementById('hanteishi-type').value;
@@ -640,6 +638,7 @@ function getHanteishiDiff(cityName) {
     else if (hType === 'total') actualHanteishi = hanteishiData[cityName]['民間'] + hanteishiData[cityName]['行政'];
   }
 
+  // 整数の必要数から実数を引くため、増減数も必ず整数になる
   return requiredHanteishi - actualHanteishi;
 }
 
@@ -735,6 +734,7 @@ function onEachFeature(feature, layer) {
 
       if (!isNaN(period) && period > 0 && damageVal > 0) {
         const requiredPerDay = damageVal / period;
+        // ペースは1日あたりの速度指標のため、小数点第1位のまま残しています
         periodText = `<br><span style="color:#d63384; font-weight:bold;">必要判定ペース: ${requiredPerDay.toFixed(1)} 棟/日</span>`;
       }
 
@@ -742,13 +742,15 @@ function onEachFeature(feature, layer) {
           !isNaN(capacity) && capacity > 0 &&
           !isNaN(workingDays) && workingDays > 0) {
 
-        const requiredHanteishi = (((damageVal / period) / capacity) * 2) * (period / workingDays);
-        requiredHanteishiText = `<br><span style="color:#dc3545; font-weight:bold;">必要判定士数: ${requiredHanteishi.toFixed(1)} 人</span>`;
+        // ★ ここでも必要判定士数を端数切り上げし、カンマ区切りで表示
+        const requiredHanteishi = Math.ceil((((damageVal / period) / capacity) * 2) * (period / workingDays));
+        requiredHanteishiText = `<br><span style="color:#dc3545; font-weight:bold;">必要判定士数: ${requiredHanteishi.toLocaleString()} 人</span>`;
 
         if (diffVal !== null) {
           const diffSign = diffVal > 0 ? "+" : "";
           const diffColor = diffVal > 0 ? "#b2182b" : (diffVal < 0 ? "#2166ac" : "#666");
-          diffText = `<br><span style="color:${diffColor}; font-weight:bold;">増減数(必要-確保): ${diffSign}${diffVal.toFixed(1)} 人</span>`;
+          // ★ 増減数は toFixed(1) を外して整数表示に
+          diffText = `<br><span style="color:${diffColor}; font-weight:bold;">増減数(必要-確保): ${diffSign}${diffVal.toLocaleString()} 人</span>`;
         }
       }
 
@@ -783,7 +785,6 @@ document.querySelectorAll('select, input[type="number"], input[type="radio"]').f
   });
 });
 
-// ★ 凡例の配置を topright (右上) に変更
 const legend = L.control({position: 'topright'});
 
 function updateLegend() {
@@ -831,11 +832,10 @@ function updateLegend() {
             bureauSums[bureau] += getCalculatedDamage(city);
         } else {
             const diff = getHanteishiDiff(city);
-            if (diff !== null) bureauSums[bureau] += diff;
+            if (diff !== null) bureauSums[bureau] += diff; // 端数処理済みの整数を加算
         }
     });
 
-    // 値が大きい順（被害が多い順・不足が深刻な順）に並び替え
     const sortedBureaus = Object.keys(bureauSums).sort((a, b) => bureauSums[b] - bureauSums[a]);
 
     html += `<hr style="margin: 12px 0; border: 0; border-top: 1px dashed #bbb;">`;
@@ -850,9 +850,12 @@ function updateLegend() {
            if (currentMode === 'damage') {
                html += `<div style="display:flex; justify-content:space-between;"><span>${b}:</span> <strong>${Math.ceil(val).toLocaleString()} 棟</strong></div>`;
            } else {
-               const sign = val > 0 ? '+' : '';
-               const color = val > 0 ? '#b2182b' : (val < 0 ? '#2166ac' : '#555');
-               html += `<div style="display:flex; justify-content:space-between;"><span>${b}:</span> <span style="color:${color}; font-weight:bold;">${sign}${val.toFixed(1)} 人</span></div>`;
+               // ★ 合計値も確実に切り上げ（通常は整数の足し算なので整数のままですが念のため）
+               const roundedVal = Math.ceil(val);
+               const sign = roundedVal > 0 ? '+' : '';
+               const color = roundedVal > 0 ? '#b2182b' : (roundedVal < 0 ? '#2166ac' : '#555');
+               // ★ toFixed(1) を外し、カンマ区切りの整数表示に
+               html += `<div style="display:flex; justify-content:space-between;"><span>${b}:</span> <span style="color:${color}; font-weight:bold;">${sign}${roundedVal.toLocaleString()} 人</span></div>`;
            }
        });
     }
