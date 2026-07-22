@@ -392,39 +392,30 @@ let cityToBureau = {};
 let rawGeoJSON = typeof hokkaidoData !== 'undefined' ? hokkaidoData : null;
 let rawBureauGeoJSON = typeof bureauData !== 'undefined' ? bureauData : null;
 
-// ★ 新しくいただいたGASのURLに書き換えています
+// GASのURL
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzwLj5AmLotuyo2h4Y89WAWuXhqoYohbqdsYfoSY7BBRxyJLWpkTd0HUDLQ94OveUruaQ/exec';
 
-// 凡例の開閉状態を記憶する変数（初期状態：振興局別合計のみ閉じる）
+// 凡例の開閉状態を記憶する変数
 let legendState = {
-    sec1: true,  // 色分け凡例
-    sec2: false, // 振興局別合計
-    sec3: true   // 全道集計
+    sec1: true,
+    sec2: false,
+    sec3: true
 };
 
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        // キャッシュ回避のためのユニークなタイムスタンプ（ミリ秒単位の現在時刻）
+        // ★修正点：通信ブロックの原因になっていたカスタムヘッダー設定を削除し、
+        // 単純なURLパラメータ(?_t=日時)のみで安全にキャッシュを突破します。
         const timeStamp = new Date().getTime();
-        
-        // フェッチ時の設定で強力にキャッシュを無効化する
-        const fetchOptions = {
-            method: 'GET',
-            cache: 'no-store',
-            headers: {
-                'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache'
-            }
-        };
 
         // 1. GASから最新の被害想定データ (damage) を自動読み込み
-        const resDamage = await fetch(`${GAS_URL}?type=damage&_t=${timeStamp}`, fetchOptions);
+        const resDamage = await fetch(`${GAS_URL}?type=damage&_t=${timeStamp}`);
         if (!resDamage.ok) throw new Error('被害想定データの取得に失敗しました');
         const textDamage = await resDamage.text();
         parseCSV(textDamage);
 
         // 2. GASから最新の判定士データ (hanteishi) を自動読み込み
-        const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi&_t=${timeStamp}`, fetchOptions);
+        const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi&_t=${timeStamp}`);
         if (!resHanteishi.ok) throw new Error('判定士データの取得に失敗しました');
         const textHanteishi = await resHanteishi.text();
         parseHanteishiCSV(textHanteishi);
