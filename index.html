@@ -404,17 +404,27 @@ let legendState = {
 
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        // ★改良点：ブラウザのキャッシュ（古い記憶）を強制的に無視させるためのタイムスタンプ
+        // ★ キャッシュ回避のためのユニークなタイムスタンプ（ミリ秒単位の現在時刻）
         const timeStamp = new Date().getTime();
+        
+        // ★ フェッチ時の設定で強力にキャッシュを無効化する
+        const fetchOptions = {
+            method: 'GET',
+            cache: 'no-store', // ブラウザキャッシュを完全に無視
+            headers: {
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache'
+            }
+        };
 
-        // 1. GASから最新の被害想定データ (damage) を自動読み込み
-        const resDamage = await fetch(`${GAS_URL}?type=damage&_t=${timeStamp}`);
+        // 1. GASから最新の被害想定データ (damage) を自動読み込み（URLパラメータにもタイムスタンプ付与）
+        const resDamage = await fetch(`${GAS_URL}?type=damage&_t=${timeStamp}`, fetchOptions);
         if (!resDamage.ok) throw new Error('被害想定データの取得に失敗しました');
         const textDamage = await resDamage.text();
         parseCSV(textDamage);
 
         // 2. GASから最新の判定士データ (hanteishi) を自動読み込み
-        const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi&_t=${timeStamp}`);
+        const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi&_t=${timeStamp}`, fetchOptions);
         if (!resHanteishi.ok) throw new Error('判定士データの取得に失敗しました');
         const textHanteishi = await resHanteishi.text();
         parseHanteishiCSV(textHanteishi);
@@ -462,7 +472,6 @@ function parseCSV(csvText) {
   const headerDamage = lines[2].split(',');
 
   const modelSet = new Set();
-  // ★D列（インデックス3）からループ処理を回してモデル名を抽出しています
   for (let j = 3; j < headerModel.length; j++) {
     if (headerModel[j].trim() && headerModel[j] !== "id") {
       modelSet.add(headerModel[j].trim());
@@ -948,7 +957,6 @@ function updateLegend() {
 
     div.innerHTML = html;
 
-    // 開閉状態が変更されたら変数を更新するイベントリスナーを付与
     div.querySelector('#legend-sec1').addEventListener('toggle', function(e) { legendState.sec1 = e.target.open; });
     div.querySelector('#legend-sec2').addEventListener('toggle', function(e) { legendState.sec2 = e.target.open; });
     div.querySelector('#legend-sec3').addEventListener('toggle', function(e) { legendState.sec3 = e.target.open; });
@@ -958,7 +966,6 @@ function updateLegend() {
   legend.addTo(map);
 }
 
-// --- ハンバーガーメニューの開閉制御 ---
 const hamburgerBtn = document.getElementById('hamburger-btn');
 const sidebar = document.getElementById('sidebar');
 
