@@ -404,12 +404,17 @@ let legendState = {
 
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        const resDamage = await fetch(`${GAS_URL}?type=damage`);
+        // ★改良点：ブラウザのキャッシュ（古い記憶）を強制的に無視させるためのタイムスタンプ
+        const timeStamp = new Date().getTime();
+
+        // 1. GASから最新の被害想定データ (damage) を自動読み込み
+        const resDamage = await fetch(`${GAS_URL}?type=damage&_t=${timeStamp}`);
         if (!resDamage.ok) throw new Error('被害想定データの取得に失敗しました');
         const textDamage = await resDamage.text();
         parseCSV(textDamage);
 
-        const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi`);
+        // 2. GASから最新の判定士データ (hanteishi) を自動読み込み
+        const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi&_t=${timeStamp}`);
         if (!resHanteishi.ok) throw new Error('判定士データの取得に失敗しました');
         const textHanteishi = await resHanteishi.text();
         parseHanteishiCSV(textHanteishi);
@@ -457,6 +462,7 @@ function parseCSV(csvText) {
   const headerDamage = lines[2].split(',');
 
   const modelSet = new Set();
+  // ★D列（インデックス3）からループ処理を回してモデル名を抽出しています
   for (let j = 3; j < headerModel.length; j++) {
     if (headerModel[j].trim() && headerModel[j] !== "id") {
       modelSet.add(headerModel[j].trim());
