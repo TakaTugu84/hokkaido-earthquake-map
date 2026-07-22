@@ -165,7 +165,6 @@ select, input[type="number"] {
   border-radius: 3px;
 }
 
-/* --- 折りたたみ（アコーディオン）用のCSS --- */
 .legend details {
   margin-bottom: 12px;
   border-bottom: 1px solid #eaeaea;
@@ -207,7 +206,6 @@ select, input[type="number"] {
   border-radius: 2px;
 }
 
-/* --- スマホ用・ハンバーガーメニューのCSS --- */
 #hamburger-btn {
   display: none;
   position: absolute;
@@ -392,10 +390,13 @@ let cityToBureau = {};
 let rawGeoJSON = typeof hokkaidoData !== 'undefined' ? hokkaidoData : null;
 let rawBureauGeoJSON = typeof bureauData !== 'undefined' ? bureauData : null;
 
-// GASのURL
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzwLj5AmLotuyo2h4Y89WAWuXhqoYohbqdsYfoSY7BBRxyJLWpkTd0HUDLQ94OveUruaQ/exec';
 
-// 凡例の開閉状態を記憶する変数
+// =========================================================================
+// ★ ここに ステップ3で取得した 新しいGASのURL を貼り付けてください
+// =========================================================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbw7QQZIEl_umq6CZArjMft8lez73VFrlaTwcof43K8Vd-hSfQorp5PjTziUyoF17GKWBw/exec';
+
+
 let legendState = {
     sec1: true,
     sec2: false,
@@ -404,20 +405,24 @@ let legendState = {
 
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        // ★修正点：通信ブロックの原因になっていたカスタムヘッダー設定を削除し、
-        // 単純なURLパラメータ(?_t=日時)のみで安全にキャッシュを突破します。
         const timeStamp = new Date().getTime();
 
-        // 1. GASから最新の被害想定データ (damage) を自動読み込み
+        // 1. GASから最新の被害想定データ (damage_v2) を自動読み込み
         const resDamage = await fetch(`${GAS_URL}?type=damage&_t=${timeStamp}`);
-        if (!resDamage.ok) throw new Error('被害想定データの取得に失敗しました');
+        if (!resDamage.ok) throw new Error('通信エラー（被害想定データ）');
         const textDamage = await resDamage.text();
+        if (textDamage.startsWith("Error")) {
+            throw new Error(`GASエラー: ${textDamage}`);
+        }
         parseCSV(textDamage);
 
-        // 2. GASから最新の判定士データ (hanteishi) を自動読み込み
+        // 2. GASから最新の判定士データ (hanteishi_v2) を自動読み込み
         const resHanteishi = await fetch(`${GAS_URL}?type=hanteishi&_t=${timeStamp}`);
-        if (!resHanteishi.ok) throw new Error('判定士データの取得に失敗しました');
+        if (!resHanteishi.ok) throw new Error('通信エラー（判定士データ）');
         const textHanteishi = await resHanteishi.text();
+        if (textHanteishi.startsWith("Error")) {
+            throw new Error(`GASエラー: ${textHanteishi}`);
+        }
         parseHanteishiCSV(textHanteishi);
 
         if (rawGeoJSON !== null && rawBureauGeoJSON !== null) {
@@ -427,11 +432,11 @@ window.addEventListener('DOMContentLoaded', async () => {
             alert("地図データ(jsファイル)の読み込みに失敗しました。");
         }
     } catch (error) {
-        console.error("データ読み込みエラー:", error);
-        alert("データの読み込みに失敗しました。\n通信状況やGASのURLが正しいか確認してください。");
+        console.error("詳細なエラー情報:", error);
+        alert(`データの読み込みに失敗しました。\n\n詳細: ${error.message}\n\nURLの貼り忘れや、GASのデプロイ設定（アクセスできるユーザー:全員）を見直してください。`);
         document.querySelector('.modal h3').innerText = "読み込みエラー";
         document.querySelector('.modal h3').style.color = "red";
-        document.querySelector('.modal p').innerText = "Googleからのデータ取得に失敗しました。";
+        document.querySelector('.modal p').innerText = "データベースの構築設定をご確認ください。";
     }
 });
 
